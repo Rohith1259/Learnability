@@ -36,7 +36,7 @@ Follow these steps to get up and running with **Learnability**:
    ```
 3. **Run the Application**:
    ```bash
-   streamlit run app.py
+   streamlit run learnability.py
    ```
 
 ## 📚 How It Works
