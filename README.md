@@ -8,19 +8,20 @@ Welcome to **Learnability** – your dynamic study resource platform designed to
 
 ## 🌟 Overview
 
-**Learnability** is a web page that transforms the way you learn by leveraging the power of web scraping, natural language processing, and auditory learning aids. Whether you're a student, a lifelong learner, or just curious about a new topic, **Learnability** provides you with structured, efficient, and engaging learning opportunities.
+**Learnability** is an intelligent, web-based platform built with Streamlit that empowers users to quickly understand any topic by generating concise summaries from trusted online sources such as Wikipedia and GeeksforGeeks. The application uses transformer-based NLP models (specifically Facebook's bart-large-cnn) for summarization and Google Text-to-Speech (gTTS) to convert those summaries into audio format, enabling both visual and auditory learning.
 
 ## 🎯 Key Features
 
 - **Web Scraping 🕸️**: Input your topic of interest, and our sophisticated web scraping mechanism, powered by Beautiful Soup, extracts relevant information from diverse sources across the web.
-- **Natural Language Processing 🧠**: Using advanced NLP techniques from the NLTK library, the extracted information is summarized into concise, coherent insights.
+- **State-of-the-Art NLP Model** : Uses Facebook’s BART transformer model for high-quality abstractive summarization.
 - **Auditory Learning 🎧**: Enjoy the flexibility of learning on-the-go with our text-to-speech feature, which converts summaries into audio content, catering to various learning preferences and accessibility needs.
 
 ## 🔧 Technology Stack
 
 - **Streamlit**: Our principal framework for crafting a dynamic and interactive user interface.
 - **Beautiful Soup**: Efficiently extracts data from an array of web sources.
-- **NLTK**: Performs insightful text processing and summarization, leveraging techniques such as TF-IDF.
+- **Transformers (HuggingFace)**: For loading and using the facebook/bart-large-cnn summarization model.
+- **gTTS (Google Text-to-Speech)**: Converts generated summaries into audio format.
 
 ## 🚀 Getting Started
 
@@ -43,7 +44,7 @@ Follow these steps to get up and running with **Learnability**:
 
 1. **Input Your Topic**: Enter the topic you want to learn about in the user-friendly interface.
 2. **Data Extraction**: Our web scraping mechanism gathers relevant information from various websites.
-3. **Content Summarization**: Using NLP techniques, the system distills the gathered information into a concise summary.
+3. **Content Summarization**: Using BART model, the system distills the gathered information into a concise summary.
 4. **Audio Option**: Choose to listen to the summarized content using the text-to-speech feature for a flexible learning experience.
 
 ## 💡 Why Learnability?
