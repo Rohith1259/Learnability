@@ -8,7 +8,7 @@ Welcome to **Learnability** – your dynamic study resource platform designed to
 
 ## 🌟 Overview
 
-**Learnability** is an intelligent, web-based platform built with Streamlit that empowers users to quickly understand any topic by generating concise summaries from trusted online sources such as Wikipedia and GeeksforGeeks. The application uses transformer-based NLP models (specifically Facebook's bart-large-cnn) for summarization and Google Text-to-Speech (gTTS) to convert those summaries into audio format, enabling both visual and auditory learning.
+**Learnability** is an intelligent, web-based platform built with Streamlit that empowers users to quickly understand any topic by generating concise summaries from trusted online sources. The application uses transformer-based NLP models (specifically Facebook's bart-large-cnn) for summarization and Google Text-to-Speech (gTTS) to convert those summaries into audio format, enabling both visual and auditory learning.
 
 ## 🎯 Key Features
 
