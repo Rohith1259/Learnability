@@ -1,199 +1,122 @@
 import streamlit as st
-import urllib.parse
 import requests
 from bs4 import BeautifulSoup
-import nltk
-nltk.download('punkt')
-nltk.download('stopwords')
-from nltk.tokenize import sent_tokenize
-from nltk.probability import FreqDist
-from nltk.corpus import stopwords
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import pyttsx3
+from transformers import BartTokenizer, BartForConditionalGeneration
+import torch
+from gtts import gTTS  
+import tempfile
 import os
-import time  # Import the time module for the delay
 
-# Function to scrape relevant data from URLs
-def scrape_data_from_urls(urls, keyword):
-    texts = []
-    with requests.Session() as session:
-        for url in urls:
-            try:
-                url_with_keyword = urllib.parse.urljoin(url, keyword)
-                response = session.get(url_with_keyword)
-                response.encoding = response.apparent_encoding
-                soup = BeautifulSoup(response.content, "html.parser")
+# Load model and tokenizer
+tokenizer = BartTokenizer.from_pretrained("facebook/bart-large-cnn")
+model = BartForConditionalGeneration.from_pretrained("facebook/bart-large-cnn")
 
-                # Specify the relevant tag or tags for scraping the required information
-                relevant_elements = soup.find_all('p') + soup.find_all('div', class_='relevant-class')
-                relevant_text = ' '.join([element.get_text(strip=True) for element in relevant_elements])
-                texts.append(relevant_text)
+@st.cache_data(show_spinner=False)
+def fetch_wikipedia(query):
+    try:
+        response = requests.get(f"https://en.wikipedia.org/wiki/{query.replace(' ', '_')}")
+        soup = BeautifulSoup(response.text, "html.parser")
+        content = " ".join([p.text for p in soup.find_all("p")[:10]])
+        return content.strip()
+    except Exception:
+        return ""
 
-            except requests.RequestException as e:
-                print(f"Error occurred while generating")
-                continue  # Skip this website and continue with the next one
+@st.cache_data(show_spinner=False)
+def fetch_geeksforgeeks(query):
+    try:
+        url = f"https://www.geeksforgeeks.org/{query.replace(' ', '-')}/"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
+        content = " ".join([p.text for p in soup.find_all("p")[:10]])
+        return content.strip()
+    except Exception:
+        return ""
 
-    return texts
+def generate_chunks(text, chunk_size=1024):
+    words = text.split()
+    for i in range(0, len(words), chunk_size):
+        yield " ".join(words[i:i + chunk_size])
 
-# Function to generate a summary using TF-IDF
-def generate_summary(text, num_sentences=100):
-    sentences = sent_tokenize(text)
-    vectorizer = TfidfVectorizer(stop_words=stopwords.words('english'))
-    sentence_matrix = vectorizer.fit_transform(sentences)
-    cosine_sim_matrix = cosine_similarity(sentence_matrix, sentence_matrix)
-    sentence_scores = {i: sum(cosine_sim_matrix[i]) - cosine_sim_matrix[i][i] for i in range(len(sentences))}
-    top_sentences_indices = sorted(sentence_scores, key=sentence_scores.get, reverse=True)[:num_sentences]
-    summary = [sentences[i] for i in top_sentences_indices]
-    return "\n".join(summary)
+def summarize_text(text):
+    try:
+        summaries = []
+        for chunk in generate_chunks(text):
+            inputs = tokenizer.encode(chunk, return_tensors="pt", max_length=1024, truncation=True)
+            summary_ids = model.generate(
+                inputs,
+                max_length=500,
+                min_length=200,
+                length_penalty=2.0,
+                num_beams=4,
+                early_stopping=True
+            )
+            summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+            summaries.append(summary)
+        return "\n\n".join(summaries)
+    except Exception as e:
+        return f"Summarization error: {str(e)}"
 
+# Updated text-to-speech using gTTS
+def text_to_speech(summary_text):
+    try:
+        tts = gTTS(text=summary_text, lang='en')
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmpfile:
+            tts.save(tmpfile.name)
+            return tmpfile.name
+    except Exception as e:
+        st.error(f"Text-to-speech error: {str(e)}")
+        return None
 
+# Streamlit UI
+st.set_page_config(page_title="Learnability", layout="centered")
+st.title("\U0001F9E0 Learnability - Smart Topic Summarizer")
 
-def text_to_speech(text):
-    engine = pyttsx3.init()
-    engine.save_to_file(text, 'output.mp3')
-    engine.runAndWait()
-    return 'output.mp3'
+# Sidebar
+with st.sidebar:
+    st.markdown('<div class="side-panel">', unsafe_allow_html=True)
+    st.header("Learnability Info and Team")
 
-def main():
-    st.title("Learnability")
-
-    # Custom CSS styling for the layout
-    st.markdown(
-        """
-        <style>
-        .main {
-            padding: 0;
-            background-image: linear-gradient(to right, #1167B1 ,#77CFF2); /* Background gradient from right to left */
-            border-radius: 10px;
-            color: #ffffff; /* White text color */
-            font-family: 'Helvetica', sans-serif; /* Font family for the title */
-        }
-        .input-area {
-            margin-bottom: 1rem;
-        }
-        .summary-area {
-            margin-top: 1rem;
-            width: 100%;
-            height: 10rem;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            padding: 1rem;
-            background-color: #ffffff;
-        }
-        .btn-generate {
-            margin-right: 1rem;
-        }
-        .btn-audio {
-            background-color: green;
-            color: #ffffff;
-            border: none;
-            border-radius: 5px;
-            padding: 0.5rem 1rem;
-        }
-        .side-panel {
-            padding: 0;
-            background-color: #333333;
-            border-radius: 10px;
-            text-align: justify;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # Main content area
-    st.markdown('<div class="main">', unsafe_allow_html=True)
-     
-     
-    # Sidebar
-    with st.sidebar:
-        st.markdown('<div class="side-panel">', unsafe_allow_html=True)
-        st.header("Learnability Info and Team")
-
-        # "About" section (Dropdown)
-        with st.expander("About"):
-            st.write("Welcome to Learnability !\n\n A cutting-edge platform empowering learners with rapid text summarization from different sources, optimizing time utilization. "
+    with st.expander("About"):
+        st.write("Welcome to Learnability !\n\n A cutting-edge platform empowering learners with rapid text summarization from different sources, optimizing time utilization. "
                  "Elevate your learning journey through the sophisticated text-to-speech feature. Embrace a seamless path to acquiring knowledge effortlessly, fostering remarkable growth and proficiency.")
 
-        # Profiles section (Dropdown)
-        with st.expander("Profiles"):
-            st.markdown("#### - Katuri Sreeja")
-            st.write("Hey there, I'm Sreeja.\n\nAn AI and Data Science undergraduate with a passion for exploring AI, data science, and machine learning. I intend to enhance my skill set by delving into these technologies and generate significant solutions.")
+    with st.expander("Profiles"):
+        st.markdown("#### - Katuri Sreeja")
+        st.write("Hey there, I'm Sreeja.\n\nAn AI and Data Science undergraduate with a passion for exploring AI, data science, and machine learning. I intend to enhance my skill set by delving into these technologies and generate significant solutions.")
 
-            st.markdown("#### - M . Rohith")
-            st.write("Hello, I'm Rohith.\n\nAs an Artificial Intelligence and Data Science I love to explore advanced technologies in Artificial Intelligence , Data Science and create meaningful solutions.")
-          
+        st.markdown("#### - M . Rohith")
+        st.write("Hello, I'm Rohith.\n\nAs an Artificial Intelligence and Data Science I love to explore advanced technologies in Artificial Intelligence , Data Science and create meaningful solutions.")
 
-            st.markdown("#### - D . Siddharth Ram ")
-            st.write("Hi, I'm Siddharth.\n\nAn Artificial Intelligence and Data Sceince undergrad with an interest in cutting-edge technologie­s such as artificial intelligence, data scie­nce, and machine learning. I aim to attain expertise­ in web developme­nt someday!")
+        st.markdown("#### - D . Siddharth Ram ")
+        st.write("Hi, I'm Siddharth.\n\nAn Artificial Intelligence and Data Sceince undergrad with an interest in cutting-edge technologie\u00ads such as artificial intelligence, data scie\u00adnce, and machine learning. I aim to attain expertise\u00ad in web developme\u00adnt someday!")
 
-        # Feedback and Contact section (Dropdown)
-        with st.expander("Feedback and Contact"):
-            st.write("We would love to hear your feedback about Learnability. If you have any questions, suggestions, "
-                     "or issues, please feel free to reach out to us using the contact information below:")
+    with st.expander("Feedback and Contact"):
+        st.write("We would love to hear your feedback about Learnability. If you have any questions, suggestions, "
+                 "or issues, please feel free to reach out to us using the contact information below:")
 
-            st.markdown("✉ Email: learnability03@gmail.com ")
+        st.markdown("\u2709 Email: learnability03@gmail.com ")
 
+# Main input
+topic = st.text_input("Enter a topic you want to learn about:")
 
-        st.markdown('</div>', unsafe_allow_html=True)
+if st.button("Generate Summary") and topic:
+    with st.spinner("Fetching and summarizing data..."):
+        wiki_content = fetch_wikipedia(topic)
+        gfg_content = fetch_geeksforgeeks(topic)
 
-    # Text input for user input
-    with st.container():
-        user_input = st.text_input("Enter your keywords:", key="user_input")
-        st.markdown('<style>.css-16p5q05 textarea { margin-bottom: 1rem; }</style>', unsafe_allow_html=True)
+        if not wiki_content and not gfg_content:
+            st.error("No content found from either source.")
+        else:
+            combined = wiki_content + "\n" + gfg_content
+            summary = summarize_text(combined)
+            st.subheader("\U0001F4C4 Generated Summary")
+            st.write(summary)
 
-    # Buttons area
-    with st.container():
-        if st.button("Generate Summary", key="btn_generate"):
-            if not user_input.strip():  # Check if the input is empty or contains only whitespace
-                st.warning("Please enter a keyword before generating the summary.")
-            else:
-                # List of URLs to scrape data from
-                urls = ["https://www.google.co.in/", "https://www.geeksforgeeks.org/", "https://en.wikipedia.org/wiki/Wikipedia:"]
-                
-                
-                # Scrape the data from the URLs for the given keyword
-                data = scrape_data_from_urls(urls, user_input)
-                
-                # Join the list of texts into one string
-                data = " ".join(data)
-                
-                # Show the spinner while processing the summary generation
-                with st.spinner("Generating summary..."):
-                    # Simulate processing time (5 seconds delay in this example)
-                    time.sleep(1)
-                    
-                    # Generate the summary using TF-IDF
-                    summary = generate_summary(data, num_sentences=3)
-                    
-                    # Display the summary
-                    st.text_area("Summary:", summary, key="summary_area", height=10)
-                    st.markdown('<style>.css-1e7m3am { margin-top: 1rem; border: 1px solid #ccc; border-radius: 5px; padding: 1rem; background-color: #ffffff; }</style>', unsafe_allow_html=True)
-
-        if st.button("Text-to-Speech", key="btn_audio"):
-            if user_input:
-                # List of URLs to scrape data from
-                urls = ["https://www.google.co.in/", "https://www.geeksforgeeks.org/", "https://en.wikipedia.org/wiki/Wikipedia:"]
-                
-                # Scrape the data from the URLs for the given keyword
-                data = scrape_data_from_urls(urls, user_input)
-                
-                # Join the list of texts into one string
-                data = " ".join(data)
-                
-                # Generate the summary using TF-IDF
-                summary = generate_summary(data, num_sentences=3)
-                
-                # Convert the summary to speech
-                audio_file = text_to_speech(summary)
-                st.audio(audio_file, format='audio/mp3')
-
-            else:
-                st.warning("Please enter a keyword before generating speech.")
-   
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-if __name__ == "__main__":
-    main()
+            # Audio
+            st.subheader("🔊 Listen to Summary")
+            audio_file_path = text_to_speech(summary)
+            if audio_file_path:
+                audio_bytes = open(audio_file_path, 'rb').read()
+                st.audio(audio_bytes, format='audio/mp3')
+                os.remove(audio_file_path)  # Clean up temp file
